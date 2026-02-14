@@ -1,63 +1,112 @@
-def create_inscription(D):
-    user = {"nom" : "",
-            "prenom" : "",
-            "addresse" : "",
-            "mail": "",
-            "mdp": ""}
-    print("Veillez entrer  vos informations d'inscription : \n")
-    user["nom"] = str(input("Veuillez entrer votre nom : \n"))
-    user["prenom"]  = str(input("Veuillez entrer votre prenom : \n"))
-    user["addresse"]  = str(input("Veuillez entrer votre adresse : \n"))
-    mail = input("Veuillez renseigner votre adresse mail :\n")
-    while mail_existe(D, mail):
-        mail = input(f"L'adresse e-mail {mail} est déjà utilisée dans notre système, veuillez changer :\n")
-    user["mail"] = mail
-    mdp = str(input("Veuillez définir un mot de passe : \n"))
-    mdptemp = str(input("Confirmation du mot de passe : \n"))
-    while mdp != mdptemp:
-        mdptemp = str(input("Mot de passe incorrect, veuillez réessayer : \n"))
-    user["mdp"] = mdp
-    if not D:
-        D[0] = user
-    else:
-        D[max(D.keys())+1] = user
-    print("Inscription réussie !\n")
+import os
+import hashlib
 
-def connexion(D):
-    print("Veillez entrer  vos informations de connexion : \n")
-    mail = str(input("Veuillez renseigner votre adresse mail : \n"))
-    mdp = str(input("Veuillez renseigner votre mot de passe : \n"))
-    for user in D.values():
-        if user["mail"] == mail:
-            if user["mdp"] == mdp:
-                print("Connexion réussie !")
-                print(f"Bienvenue {user['prenom']} {user['nom']}")
-                return True
-            else:
-                print("Mot de passe incorrect.")
-        else:
-            print("Mail inconnu.")
-    return False
+SALT = 16
+ITERATIONS = 100_000
+ALG = "sha256"
 
 
-def mail_existe(D, mail):
-    for user in D.values():
-        if user["mail"] == mail:
+def hash_password(password):
+    salt = os.urandom(SALT)
+    dk = hashlib.pbkdf2_hmac(
+        ALG,
+        password.encode("utf-8"),
+        salt,
+        ITERATIONS
+    )
+    return salt.hex(), dk.hex()
+
+
+def verify_password(password, salt_hex, hash_hex):
+    salt = bytes.fromhex(salt_hex)
+    stored_hash = bytes.fromhex(hash_hex)
+
+    new_hash = hashlib.pbkdf2_hmac(
+        ALG,
+        password.encode("utf-8"),
+        salt,
+        ITERATIONS
+    )
+
+    return new_hash == stored_hash
+
+
+def email_exists(users, email):
+    for user in users.values():
+        if user["email"] == email:
             return True
     return False
 
-users = {}
-choix =""
-while choix != "QUIT":
-    print("Bonjour veuillez vous identendifier/vous inscrire\n")
-    print("1.S'inscrire --- 2.Se connecter\n")
-    choix = input("Votre choix ")
-    match choix:
-        case "1":
-            create_inscription(users)
-        case "2":
-            if connexion(users):
-                break
 
+def create_registration(users):
+    user = {
+        "last_name": "",
+        "first_name": "",
+        "address": "",
+        "email": "",
+        "salt": "",
+        "password_hash": ""
+    }
+
+    print("Please enter your registration information:\n")
+    user["last_name"] = input("Please enter your last name:\n")
+    user["first_name"] = input("Please enter your first name:\n")
+    user["address"] = input("Please enter your address:\n")
+
+    email = input("Please enter your email address:\n")
+    while email_exists(users, email):
+        email = input(f"The email address {email} is already used, please choose another one:\n")
+    user["email"] = email
+
+    password = input("Please set a password:\n")
+    password_confirm = input("Password confirmation:\n")
+    while password != password_confirm:
+        password_confirm = input("Passwords do not match, please try again:\n")
+
+    # ICI : on hash et on stocke SEL + HASH (pas le password)
+    salt_hex, hash_hex = hash_password(password)
+    user["salt"] = salt_hex
+    user["password_hash"] = hash_hex
+
+    new_id = max(users.keys()) + 1 if users else 0
+    users[new_id] = user
+
+    print("Registration successful!\n")
+
+
+def login(users):
+    print("Please enter your login information:\n")
+    email = input("Please enter your email address:\n")
+    password = input("Please enter your password:\n")
+
+    for user in users.values():
+        if user["email"] == email:
+            if verify_password(password, user["salt"], user["password_hash"]):
+                print("Login successful!")
+                print(f"Welcome {user['first_name']} {user['last_name']}")
+                return True
+            else:
+                print("Incorrect password.")
+                return False
+
+    print("Email not found.")
+    return False
+
+users = {}
+choice = ""
+
+while choice != "QUIT":
+    print("Welcome, please sign up or log in\n")
+    print("1. Sign up --- 2. Log in\n")
+    choice = input("Your choice: ")
+
+    match choice:
+        case "1":
+            create_registration(users)
+        case "2":
+            if login(users):
+                break
+        case "QUIT":
+            break
         case _:
-            print("Choix invalide")
+            print("Invalid choice.")
